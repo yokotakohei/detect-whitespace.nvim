@@ -30,11 +30,10 @@ jobs:
 
       # 2. Install Neovim
       - name: Install Neovim
-        run: |
-          # Install latest stable version of Neovim
-          wget -q https://github.com/neovim/neovim/releases/download/stable/nvim-linux64.tar.gz
-          tar xzf nvim-linux64.tar.gz
-          echo "$PWD/nvim-linux64/bin" >> $GITHUB_PATH
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
 
       # 3. Verify Neovim version
       - name: Verify Neovim installation
