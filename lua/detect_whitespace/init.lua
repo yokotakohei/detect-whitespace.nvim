@@ -80,33 +80,8 @@ vim.api.nvim_create_user_command(
     local files = collect_files(opts.args)
     if #files == 0 then return end
 
-    -- Get the current buffer's file path to check if it was modified
-    local current_file = vim.fn.expand("%:p")
-    local current_buffer_modified = false
-
-    -- Apply fixes and report how many files were modified
+    -- Apply fixes (handles both open buffers and files on disk)
     local fixed = fix.fix_files(files)
-
-    -- Check if the current buffer was one of the modified files
-    for _, file in ipairs(files) do
-      if file == current_file then
-        current_buffer_modified = true
-        break
-      end
-    end
-
-    -- Reload the current buffer if it was modified
-    if current_buffer_modified and fixed > 0 then
-      -- Save cursor position
-      local cursor = vim.api.nvim_win_get_cursor(0)
-      
-      -- Reload the buffer from disk
-      vim.cmd("edit!")
-      
-      -- Restore cursor position (safely, in case file changed size)
-      pcall(vim.api.nvim_win_set_cursor, 0, cursor)
-    end
-
     vim.notify("Whitespace fixed in " .. fixed .. " files")
   end,
   { nargs = "?", complete = "file" }

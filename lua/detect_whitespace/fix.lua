@@ -30,6 +30,32 @@ function M.normalize_line(line)
   return normalized
 end
 
+-- Fix whitespace in an open buffer
+--
+-- Modifies the buffer content directly without touching the disk.
+--
+-- @param bufnr (number): buffer number
+-- @return boolean: true if the buffer was modified
+function M.fix_buffer(bufnr)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local modified = false
+  local new_lines = {}
+
+  for _, line in ipairs(lines) do
+    local new_line = M.normalize_line(line)
+    if new_line ~= line then
+      modified = true
+    end
+    table.insert(new_lines, new_line)
+  end
+
+  if modified then
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, new_lines)
+  end
+
+  return modified
+end
+
 -- Fix a single file on disk.
 --
 -- Rules:
@@ -83,14 +109,29 @@ function M.fix_file(path)
 end
 
 -- Fix multiple files sequentially
--- @param files (table)
+--
+-- For files that are currently loaded in buffers, modifies the buffer directly.
+-- For files not in buffers, modifies the file on disk.
+--
+-- @param files (table): list of file paths
 -- @return number: count of modified files
 function M.fix_files(files)
   local fixed = 0
 
   for _, path in ipairs(files) do
-    if M.fix_file(path) then
-      fixed = fixed + 1
+    -- Check if this file is loaded in a buffer
+    local bufnr = vim.fn.bufnr(path)
+    
+    if bufnr ~= -1 and vim.api.nvim_buf_is_loaded(bufnr) then
+      -- File is open in a buffer, modify it directly
+      if M.fix_buffer(bufnr) then
+        fixed = fixed + 1
+      end
+    else
+      -- File is not open, modify it on disk
+      if M.fix_file(path) then
+        fixed = fixed + 1
+      end
     end
   end
 
