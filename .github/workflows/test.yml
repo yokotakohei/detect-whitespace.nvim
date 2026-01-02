@@ -1,0 +1,62 @@
+# GitHub Actions Workflow: Automated Testing
+#
+# This workflow runs:
+# - On pull request creation and updates
+# - On push to main branch
+
+name: Test
+
+# Workflow triggers
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# Job definitions
+jobs:
+  test:
+    # Job name
+    name: Run Tests
+    
+    # Running environment
+    runs-on: ubuntu-latest
+    
+    # Execution steps
+    steps:
+      # 1. Checkout repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Install Neovim
+      - name: Install Neovim
+        run: |
+          # Install latest stable version of Neovim
+          wget -q https://github.com/neovim/neovim/releases/download/stable/nvim-linux64.tar.gz
+          tar xzf nvim-linux64.tar.gz
+          echo "$PWD/nvim-linux64/bin" >> $GITHUB_PATH
+
+      # 3. Verify Neovim version
+      - name: Verify Neovim installation
+        run: nvim --version
+
+      # 4. Install test framework (plenary.nvim)
+      - name: Install plenary.nvim
+        run: |
+          # Install plenary.nvim required for running tests
+          mkdir -p ~/.local/share/nvim/site/pack/vendor/start
+          git clone --depth 1 https://github.com/nvim-lua/plenary.nvim \
+            ~/.local/share/nvim/site/pack/vendor/start/plenary.nvim
+
+      # 5. Add plugin to runtimepath
+      - name: Setup plugin
+        run: |
+          # Setup this plugin so Neovim can recognize it
+          mkdir -p ~/.local/share/nvim/site/pack/vendor/start/detect-whitespace.nvim
+          cp -r lua ~/.local/share/nvim/site/pack/vendor/start/detect-whitespace.nvim/
+
+      # 6. Run tests
+      - name: Run tests
+        run: |
+          # Run tests using plenary's test runner
+          nvim --headless -c "PlenaryBustedDirectory tests/ { minimal_init = 'tests/minimal_init.vim' }"
