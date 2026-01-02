@@ -9,7 +9,6 @@ A Neovim plugin to detect and remove unnecessary whitespace.
 - **Whitespace Detection**: Detects unnecessary whitespace in files and displays them in the quickfix list
 - **Whitespace Removal**: Automatically removes unnecessary whitespace
 - **Batch Processing**: Process multiple files at once
-- **Lightweight**: Simple and fast implementation
 
 ## Types of Whitespace Detected
 
