@@ -7,8 +7,10 @@ A Neovim plugin to detect and remove unnecessary whitespace.
 ## Features
 
 - **Whitespace Detection**: Detects unnecessary whitespace in files and displays them in the quickfix list
+- **Real-time Highlighting**: Highlights trailing whitespace in buffers as you type
 - **Whitespace Removal**: Automatically removes unnecessary whitespace
 - **Batch Processing**: Process multiple files at once
+- **Customizable Highlighting**: Choose your own highlight group for trailing whitespace
 
 ## Types of Whitespace Detected
 
@@ -26,10 +28,54 @@ A Neovim plugin to detect and remove unnecessary whitespace.
 {
   'yokotakohei/detect-whitespace.nvim',
   config = function()
-    -- Load the plugin
-    require('detect_whitespace')
+    -- Load the plugin with default settings
+    require('detect_whitespace').setup()
   end,
 }
+```
+
+### Configuration
+
+You can customize the highlighting behavior:
+
+```lua
+{
+  'yokotakohei/detect-whitespace.nvim',
+  config = function()
+    require('detect_whitespace').setup({
+      -- Highlight group for trailing whitespace
+      -- Default: "@text.note" (links to Todo)
+      highlight_group = "@text.note",
+      
+      -- Enable/disable automatic highlighting
+      -- Default: true
+      enable_highlight = true,
+    })
+  end,
+}
+```
+
+#### Custom Highlight Groups
+
+You can use any existing highlight group or define your own:
+
+```lua
+-- Use built-in highlight groups
+require('detect_whitespace').setup({
+  highlight_group = "Error",        -- Red background
+  -- or
+  highlight_group = "WarningMsg",   -- Yellow/orange
+  -- or
+  highlight_group = "Todo",         -- Todo highlighting
+  -- or
+  highlight_group = "@text.note",   -- Tree-sitter note (default)
+})
+
+-- Define your own custom highlight group
+vim.api.nvim_set_hl(0, "TrailingWhitespace", { bg = "#ff0000", fg = "#ffffff" })
+require('detect_whitespace').setup({
+  highlight_group = "TrailingWhitespace",
+})
 ```
 
 ## Usage
@@ -132,7 +178,7 @@ detect-whitespace.nvim/
 ├── .github/
 │   └── workflows/
 │       └── test.yml     # GitHub Actions config
-└── README.md            # This file
+└── README.md             # This file
 ```
 
 ## License

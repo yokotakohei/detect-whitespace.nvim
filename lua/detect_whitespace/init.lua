@@ -3,9 +3,10 @@
 -- This file defines user-facing Neovim commands and
 -- connects them to internal implementation modules.
 
--- Import detection and fixing modules
+-- Import detection, fixing, and highlighting modules
 local detect = require("detect_whitespace.detect")
 local fix = require("detect_whitespace.fix")
+local highlight = require("detect_whitespace.highlight")
 
 -- Collect target files from a user-provided argument.
 --
@@ -83,6 +84,27 @@ vim.api.nvim_create_user_command(
     -- Apply fixes (handles both open buffers and files on disk)
     local fixed = fix.fix_files(files)
     vim.notify("Whitespace fixed in " .. fixed .. " files")
+    
+    -- Refresh highlights after fixing
+    highlight.highlight_buffer()
   end,
   { nargs = "?", complete = "file" }
 )
+
+-- Public setup function for user configuration
+--
+-- @param opts table: Configuration options
+--   - highlight_group (string): Highlight group to use (default: "@text.note")
+--   - enable_highlight (boolean): Enable/disable highlighting (default: true)
+local function setup(opts)
+  highlight.setup(opts)
+end
+
+-- Initialize with default settings
+setup()
+
+-- Export setup function and highlight module
+return {
+  setup = setup,
+  highlight = highlight,
+}
