@@ -8,6 +8,7 @@ A Neovim plugin to detect and remove unnecessary whitespace.
 
 - **Whitespace Detection**: Detects unnecessary whitespace in files and displays them in the quickfix list
 - **Whitespace Removal**: Automatically removes unnecessary whitespace
+- **Real-time Highlighting**: Highlight unnecessary whitespace in your buffers
 - **Batch Processing**: Process multiple files at once
 
 ## Types of Whitespace Detected
@@ -27,7 +28,13 @@ A Neovim plugin to detect and remove unnecessary whitespace.
   'yokotakohei/detect-whitespace.nvim',
   config = function()
     -- Load the plugin
-    require('detect_whitespace')
+    require('detect_whitespace').setup({
+      -- Optional: customize the highlight group
+      -- highlight_group = 'DetectWhitespace',  -- defaults to link to 'Todo'
+
+      -- Optional: enable highlighting automatically for all buffers
+      -- enable_on_setup = false,  -- defaults to false (disabled)
+    })
   end,
 }
 ```
@@ -36,7 +43,7 @@ A Neovim plugin to detect and remove unnecessary whitespace.
 
 ### Commands
 
-#### `:DetectWhitespace [pattern]`
+#### `:DetectWhitespace [pattern...]`
 
 Detects unnecessary whitespace in files and displays them in the quickfix list.
 
@@ -51,11 +58,15 @@ Detects unnecessary whitespace in files and displays them in the quickfix list.
 :DetectWhitespace path/to/file.txt
 
 " Check multiple files with glob pattern
-:DetectWhitespace src/**/*.lua
-:DetectWhitespace *.py
+:DetectWhitespace **/*.lua
+:DetectWhitespace src/**/*.py
+:DetectWhitespace *.txt
+
+" Check multiple patterns at once
+:DetectWhitespace **/*.lua **/*.py **/*.js
 ```
 
-#### `:FixWhitespace [pattern]`
+#### `:FixWhitespace [pattern...]`
 
 Removes unnecessary whitespace. Files are modified directly.
 
@@ -67,8 +78,36 @@ Removes unnecessary whitespace. Files are modified directly.
 :FixWhitespace path/to/file.txt
 
 " Fix whitespace in multiple files
-:FixWhitespace src/**/*.lua
-:FixWhitespace *.py
+:FixWhitespace **/*.lua
+:FixWhitespace src/**/*.py
+:FixWhitespace *.txt
+
+" Fix multiple patterns at once
+:FixWhitespace **/*.lua **/*.py **/*.js
+```
+
+#### `:HighlightWhitespace`
+
+Enables real-time highlighting of unnecessary whitespace in the current buffer.
+
+```vim
+:HighlightWhitespace
+```
+
+#### `:HighlightWhitespaceDisable`
+
+Disables whitespace highlighting in the current buffer.
+
+```vim
+:HighlightWhitespaceDisable
+```
+
+#### `:HighlightWhitespaceToggle`
+
+Toggles whitespace highlighting in the current buffer.
+
+```vim
+:HighlightWhitespaceToggle
 ```
 
 ### Lua API
@@ -78,6 +117,7 @@ You can also use the plugin's functionality directly from Lua.
 ```lua
 local detect = require('detect_whitespace.detect')
 local fix = require('detect_whitespace.fix')
+local highlight = require('detect_whitespace.highlight')
 
 -- Check if a line has unnecessary whitespace
 local has_issue = detect.has_unnecessary_whitespace("example line  ")  -- true
@@ -93,7 +133,40 @@ local modified = fix.fix_file("/path/to/file.txt")  -- returns true if modified
 -- Fix multiple files
 local files = { "file1.txt", "file2.txt", "file3.txt" }
 local count = fix.fix_files(files)  -- returns number of modified files
+
+-- Enable highlighting for current buffer
+highlight.enable_for_buffer()
+
+-- Disable highlighting for current buffer
+highlight.disable_for_buffer()
+
+-- Highlight whitespace once (without auto-update)
+highlight.highlight_buffer()
 ```
+
+## Configuration
+
+You can customize the highlight group and behavior:
+
+```lua
+require("detect_whitespace").setup({
+  -- Customize highlight group (default: linked to 'Todo')
+  highlight_group = "DetectWhitespace",
+
+  -- Enable highlighting automatically for all buffers (default: false)
+  enable_on_setup = false,
+})
+
+-- Or define your own highlight group
+vim.api.nvim_set_hl(0, "DetectWhitespace", { bg = "#ff0000", fg = "#ffffff" })
+```
+
+### Configuration Options
+
+- `highlight_group` (string, default: `"DetectWhitespace"`): The highlight group to use for highlighting whitespace
+- `enable_on_setup` (boolean, default: `false`): Enable highlighting automatically for all buffers on setup
+
+The default highlight group `DetectWhitespace` is linked to `Todo`.
 
 ## Development
 
@@ -122,9 +195,12 @@ Workflow file: [`.github/workflows/test.yml`](.github/workflows/test.yml)
 detect-whitespace.nvim/
 ├── lua/
 │   └── detect_whitespace/
-│       ├── init.lua     # Plugin entry point
-│       ├── detect.lua   # Whitespace detection logic
-│       └── fix.lua      # Whitespace fixing logic
+│       ├── init.lua      # Plugin entry point
+│       ├── detect.lua    # Whitespace detection logic
+│       ├── fix.lua       # Whitespace fixing logic
+│       ├── highlight.lua # Real-time highlighting
+│       ├── constants.lua # Shared pattern constants
+│       └── utils.lua     # Common utilities
 ├── tests/
 │   ├── detect_spec.lua  # Tests for detect.lua
 │   ├── fix_spec.lua     # Tests for fix.lua
