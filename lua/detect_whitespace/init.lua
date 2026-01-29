@@ -16,8 +16,12 @@ local M = {}
 --
 -- @param opts (table|nil): configuration options.
 --   - highlight_group: name of highlight group to use for highlighting.
+--   - enable_on_setup: enable highlighting automatically for all buffers.
 function M.setup(opts)
   highlight.setup(opts)
+  
+  -- Ensure commands are created after setup.
+  _G._detect_whitespace_setup_done = true
 end
 
 -- Collect target files from a user-provided argument.
