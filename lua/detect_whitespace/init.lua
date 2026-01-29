@@ -7,7 +7,6 @@
 -- Import detection and fixing modules.
 local detect = require("detect_whitespace.detect")
 local fix = require("detect_whitespace.fix")
-local highlight = require("detect_whitespace.highlight")
 
 -- Module table for exported functions.
 local M = {}
@@ -17,6 +16,8 @@ local M = {}
 -- @param opts (table|nil): configuration options.
 --   - highlight_group: name of highlight group to use for highlighting.
 function M.setup(opts)
+  -- Lazy load highlight module to avoid initialization order issues.
+  local highlight = require("detect_whitespace.highlight")
   highlight.setup(opts)
 end
 
