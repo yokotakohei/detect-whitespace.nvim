@@ -19,6 +19,10 @@ A Neovim plugin to detect and remove unnecessary whitespace.
 2. **Whitespace-only lines**
    - Convert lines containing only whitespace to empty lines
 
+`:FixWhitespace` changes only whitespace. Line endings (LF, CRLF, or mixed),
+a missing newline at the end of the file, and multibyte characters are kept
+as they are, on every platform including Windows.
+
 ## Installation
 
 ### [lazy.nvim](https://github.com/folke/lazy.nvim)

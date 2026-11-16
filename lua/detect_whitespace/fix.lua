@@ -41,11 +41,14 @@ end
 --   - Trailing whitespace is removed.
 --   - Whitespace-only lines become empty lines.
 --   - Line count is preserved.
+--   - Each line keeps its original line ending ("\r\n", "\n", or none for a
+--     last line without a newline). The file is written in binary mode so
+--     that Windows does not convert "\n" into "\r\n".
 --
 -- @param path (string): file path.
 -- @return boolean: true if the file was modified.
 function M.fix_file(path)
-  local lines = utils.get_file_lines(path)
+  local lines, eols = utils.read_file(path)
   if not lines then
     return false
   end
@@ -70,14 +73,14 @@ function M.fix_file(path)
     return false
   end
 
-  local out = io.open(path, "w")
+  local out = io.open(path, "wb")
   if not out then
     return false
   end
 
-  -- Write all lines back, preserving line count.
-  for _, l in ipairs(new_lines) do
-    out:write(l, "\n")
+  -- Write all lines back with their original line endings.
+  for i, l in ipairs(new_lines) do
+    out:write(l, eols[i])
   end
 
   out:close()

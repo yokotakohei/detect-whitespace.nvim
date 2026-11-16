@@ -5,54 +5,72 @@ local constants = require("detect_whitespace.constants")
 
 local M = {}
 
+-- Split a carriage return off the end of a line.
+--
+-- A CRLF file opened with 'fileformat' set to unix, or read from disk, yields
+-- lines that end with "\r". The "\r" is part of the line ending, not
+-- whitespace, so it is kept aside and never removed.
+--
+-- @param line (string): Line to split.
+-- @return string, string: line body and the trailing "\r" (or "").
+function M.split_cr(line)
+  if line:sub(-1) == "\r" then
+    return line:sub(1, -2), "\r"
+  end
+  return line, ""
+end
+
+-- Find the byte index where trailing whitespace starts.
+--
+-- Whitespace characters are compared as whole characters, so bytes inside
+-- multibyte characters are never mistaken for whitespace.
+--
+-- @param body (string): Line without a line ending.
+-- @return number|nil: 1-indexed start byte, or nil if there is none.
+local function trailing_start(body)
+  local pos = #body + 1
+  local found = true
+  while found and pos > 1 do
+    found = false
+    for _, ws in ipairs(constants.WHITESPACE_CHARS) do
+      local len = #ws
+      if pos - len >= 1 and body:sub(pos - len, pos - 1) == ws then
+        pos = pos - len
+        found = true
+        break
+      end
+    end
+  end
+  if pos <= #body then
+    return pos
+  end
+  return nil
+end
+
 -- Check if a line contains unnecessary whitespace.
+--
+-- Trailing whitespace and whitespace-only lines are both reported; a
+-- whitespace-only line is a line whose trailing whitespace starts at column 1.
 --
 -- @param line (string): Line to check.
 -- @return boolean: true if the line has unnecessary whitespace.
 function M.has_unnecessary_whitespace(line)
-  -- Check for trailing whitespace.
-  if line:match(constants.TRAILING_PATTERN) then
-    return true
-  end
-
-  -- Check for whitespace-only lines.
-  if line:match(constants.BLANK_WITH_SPACE_PATTERN) then
-    return true
-  end
-
-  return false
+  local body = M.split_cr(line)
+  return trailing_start(body) ~= nil
 end
 
 -- Find positions of unnecessary whitespace in a line.
 -- Returns positions suitable for highlighting.
 --
 -- @param line (string): Line to check.
--- @return table: list of {start_col, end_col} pairs (1-indexed).
+-- @return table: list of {start_col, end_col} pairs (1-indexed, byte based).
 function M.find_whitespace_positions(line)
   local positions = {}
-
-  -- Check for trailing whitespace.
-  local start_col, end_col = line:find(constants.TRAILING_PATTERN)
+  local body = M.split_cr(line)
+  local start_col = trailing_start(body)
   if start_col then
-    table.insert(positions, { start_col = start_col, end_col = end_col })
+    table.insert(positions, { start_col = start_col, end_col = #body })
   end
-
-  -- Check for whitespace-only lines.
-  start_col, end_col = line:find(constants.BLANK_WITH_SPACE_PATTERN)
-  if start_col then
-    -- Only add if not already added by trailing pattern check.
-    local already_added = false
-    for _, pos in ipairs(positions) do
-      if pos.start_col == start_col and pos.end_col == end_col then
-        already_added = true
-        break
-      end
-    end
-    if not already_added then
-      table.insert(positions, { start_col = start_col, end_col = end_col })
-    end
-  end
-
   return positions
 end
 
@@ -85,28 +103,65 @@ function M.get_buffer_lines(bufnr)
   return vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 end
 
--- Get lines from a file on disk.
--- Returns nil if file cannot be read.
+-- Read a file on disk, keeping each line's original line ending.
+--
+-- The file is opened in binary mode so that no newline conversion happens on
+-- Windows, where text mode turns "\n" into "\r\n" on write and drops "\r"
+-- on read.
 --
 -- @param path (string): file path.
--- @return table|nil: list of lines, or nil if file cannot be read.
-function M.get_file_lines(path)
+-- @return table|nil, table|nil: line bodies and their line endings
+--   ("\r\n", "\n", or "" for a last line without a newline),
+--   or nil if the file cannot be read.
+function M.read_file(path)
   -- Skip directories.
   if M.is_directory(path) then
     return nil
   end
 
-  local file = io.open(path, "r")
+  local file = io.open(path, "rb")
   if not file then
     return nil
   end
+  local content = file:read("*a")
+  file:close()
 
-  local lines = {}
-  for line in file:lines() do
-    table.insert(lines, line)
+  local lines, eols = {}, {}
+  local pos = 1
+  while pos <= #content do
+    local nl = content:find("\n", pos, true)
+    local raw, eol
+    if nl then
+      raw = content:sub(pos, nl - 1)
+      eol = "\n"
+      pos = nl + 1
+    else
+      raw = content:sub(pos)
+      eol = ""
+      pos = #content + 1
+    end
+    local body, cr = M.split_cr(raw)
+    if eol == "\n" then
+      eol = cr .. eol
+    else
+      -- A lone "\r" at end of file without "\n" is kept as content.
+      body = raw
+    end
+    table.insert(lines, body)
+    table.insert(eols, eol)
   end
 
-  file:close()
+  return lines, eols
+end
+
+-- Get lines from a file on disk.
+-- Line endings ("\n" and "\r\n") are not included in the returned lines.
+-- Returns nil if file cannot be read.
+--
+-- @param path (string): file path.
+-- @return table|nil: list of lines, or nil if file cannot be read.
+function M.get_file_lines(path)
+  local lines = M.read_file(path)
   return lines
 end
 
@@ -129,19 +184,17 @@ end
 -- Rules:
 --   - Removes trailing whitespace.
 --   - Converts whitespace-only lines to empty lines.
+--   - Keeps a trailing "\r" (part of a CRLF line ending) in place.
 --
 -- @param line (string): Line to normalize.
 -- @return string: Normalized line.
 function M.normalize_line(line)
-  -- Remove trailing whitespace first.
-  local normalized = line:gsub(constants.TRAILING_PATTERN, "")
-
-  -- Convert whitespace-only lines to empty lines.
-  if normalized:match(constants.BLANK_WITH_SPACE_PATTERN) then
-    normalized = ""
+  local body, cr = M.split_cr(line)
+  local start_col = trailing_start(body)
+  if start_col then
+    body = body:sub(1, start_col - 1)
   end
-
-  return normalized
+  return body .. cr
 end
 
 return M

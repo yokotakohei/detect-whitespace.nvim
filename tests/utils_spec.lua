@@ -302,3 +302,127 @@ describe("utils.is_directory", function()
   end)
 
 end)
+
+
+-- Encode a code point as a UTF-8 string.
+local function utf8_char(cp)
+  if cp < 0x80 then
+    return string.char(cp)
+  elseif cp < 0x800 then
+    return string.char(0xC0 + math.floor(cp / 0x40), 0x80 + cp % 0x40)
+  else
+    return string.char(
+      0xE0 + math.floor(cp / 0x1000),
+      0x80 + math.floor(cp / 0x40) % 0x40,
+      0x80 + cp % 0x40
+    )
+  end
+end
+
+describe("utils with multibyte characters", function()
+
+  -- "ダ" (E3 83 80) shares bytes with the full-width space (E3 80 80).
+  -- A byte-based character class used to strip its last byte.
+  it("keeps a line ending with a character that shares bytes with the full-width space", function()
+    assert.equals("フォルダ", utils.normalize_line("フォルダ"))
+    assert.is_false(utils.has_unnecessary_whitespace("フォルダ"))
+    assert.equals(0, #utils.find_whitespace_positions("フォルダ"))
+  end)
+
+  it("keeps characters whose UTF-8 bytes end with 0x80", function()
+    -- 倀 = E5 80 80, 、 = E3 80 81, 「 = E3 80 8C
+    for _, s in ipairs({ "倀", "値、", "「" }) do
+      assert.equals(s, utils.normalize_line(s))
+      assert.is_false(utils.has_unnecessary_whitespace(s))
+    end
+  end)
+
+  it("removes only the whitespace after a multibyte character", function()
+    assert.equals("フォルダ", utils.normalize_line("フォルダ　 \t"))
+    local positions = utils.find_whitespace_positions("ダ　")
+    assert.equals(1, #positions)
+    assert.equals(4, positions[1].start_col)
+    assert.equals(6, positions[1].end_col)
+  end)
+
+  -- Exhaustive check over CJK symbols, kana, and a slice of kanji: no
+  -- character except U+3000 itself may be treated as whitespace.
+  it("never changes a non-whitespace character in U+3000-U+30FF and U+4E00-U+50FF", function()
+    local ranges = { { 0x3001, 0x30FF }, { 0x4E00, 0x50FF }, { 0x80, 0x7FF } }
+    for _, r in ipairs(ranges) do
+      for cp = r[1], r[2] do
+        local s = "x" .. utf8_char(cp)
+        if utils.normalize_line(s) ~= s then
+          error(string.format("U+%04X was modified by normalize_line", cp))
+        end
+        if utils.has_unnecessary_whitespace(s) then
+          error(string.format("U+%04X was detected as whitespace", cp))
+        end
+      end
+    end
+  end)
+
+end)
+
+describe("utils with carriage returns", function()
+
+  it("does not treat a CRLF line ending as whitespace", function()
+    assert.is_false(utils.has_unnecessary_whitespace("abc\r"))
+    assert.equals("abc\r", utils.normalize_line("abc\r"))
+    assert.equals(0, #utils.find_whitespace_positions("abc\r"))
+  end)
+
+  it("removes whitespace before a CR and keeps the CR", function()
+    assert.is_true(utils.has_unnecessary_whitespace("abc \t\r"))
+    assert.equals("abc\r", utils.normalize_line("abc \t\r"))
+    assert.equals("\r", utils.normalize_line("   \r"))
+    local positions = utils.find_whitespace_positions("abc  \r")
+    assert.equals(1, #positions)
+    assert.equals(4, positions[1].start_col)
+    assert.equals(5, positions[1].end_col)
+  end)
+
+end)
+
+describe("utils.read_file", function()
+
+  local function write_bytes(content)
+    local path = os.tmpname()
+    local f = io.open(path, "wb")
+    f:write(content)
+    f:close()
+    return path
+  end
+
+  it("reads LF lines", function()
+    local path = write_bytes("a\nb\n")
+    local lines, eols = utils.read_file(path)
+    os.remove(path)
+    assert.same({ "a", "b" }, lines)
+    assert.same({ "\n", "\n" }, eols)
+  end)
+
+  it("reads CRLF lines without the CR", function()
+    local path = write_bytes("a\r\nb\r\n")
+    local lines, eols = utils.read_file(path)
+    os.remove(path)
+    assert.same({ "a", "b" }, lines)
+    assert.same({ "\r\n", "\r\n" }, eols)
+  end)
+
+  it("reads mixed line endings and a last line without a newline", function()
+    local path = write_bytes("a\r\nb\nc")
+    local lines, eols = utils.read_file(path)
+    os.remove(path)
+    assert.same({ "a", "b", "c" }, lines)
+    assert.same({ "\r\n", "\n", "" }, eols)
+  end)
+
+  it("strips the CR from get_file_lines results", function()
+    local path = write_bytes("line1\r\nline2\r\n")
+    local lines = utils.get_file_lines(path)
+    os.remove(path)
+    assert.same({ "line1", "line2" }, lines)
+  end)
+
+end)
